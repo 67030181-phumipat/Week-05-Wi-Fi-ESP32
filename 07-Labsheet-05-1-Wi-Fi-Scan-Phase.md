@@ -68,8 +68,30 @@ typedef struct {
 
 #### แผนผังโครงสร้างข้อมูล (Class Diagram of `wifi_scan_config_t`)
 
-<p align="center"><img src="Images/Fig_07-Labsheet-05-1-Wi-Fi-Scan-Phase_2026-10-25T09-42-28_academic.svg" alt="07-Labsheet-05-1-Wi-Fi-Scan-Phase" width = "600px" ></p>
+```mermaid
+classDiagram
+    class wifi_scan_config_t {
+        +uint8_t* ssid
+        +uint8_t* bssid
+        +uint8_t channel
+        +bool show_hidden
+        +wifi_scan_type_t scan_type
+        +wifi_scan_time_t scan_time
+    }
+    class wifi_scan_type_t {
+        <<enumeration>>
+        WIFI_SCAN_TYPE_ACTIVE
+        WIFI_SCAN_TYPE_PASSIVE
+    }
+    class wifi_scan_time_t {
+        +uint32_t active_min_ms
+        +uint32_t active_max_ms
+        +uint32_t passive_ms
+    }
 
+    wifi_scan_config_t "1" *-- "1" wifi_scan_type_t : uses
+    wifi_scan_config_t "1" *-- "1" wifi_scan_time_t : configures
+```
 
 **คำสั่งสั่งสแกน**  `esp_wifi_scan_start(&scan_config, true)` โดยหากใส่พารามิเตอร์ตัวหลังเป็น `true` จะเป็นการสแกนแบบ Synchronous (รอจนกว่าการสแกนจะเสร็จสมบูรณ์)
 
@@ -78,8 +100,26 @@ typedef struct {
 
 #### แผนผังโครงสร้างข้อมูล (Class Diagram of `wifi_ap_record_t`)
 
-<p align="center"><img src="Images/Fig_07-Labsheet-05-1-Wi-Fi-Scan-Phase_2026-10-25T09-42-34_academic.svg" alt="07-Labsheet-05-1-Wi-Fi-Scan-Phase"  width = "400px"></p>
+```mermaid
+classDiagram
+    class wifi_ap_record_t {
+        +uint8_t[33] ssid
+        +uint8_t[6] bssid
+        +int8_t rssi
+        +uint8_t primary
+        +wifi_auth_mode_t authmode
+    }
+    class wifi_auth_mode_t {
+        <<enumeration>>
+        WIFI_AUTH_OPEN
+        WIFI_AUTH_WEP
+        WIFI_AUTH_WPA_PSK
+        WIFI_AUTH_WPA2_PSK
+        WIFI_AUTH_WPA3_PSK
+    }
 
+    wifi_ap_record_t "1" *-- "1" wifi_auth_mode_t : specifies
+```
 
 | ตัวแปรสมาชิก | รายละเอียด                 | ข้อมูล                          |
 | ------------ | -------------------------- | ------------------------------- |
@@ -415,18 +455,231 @@ void app_main(void) {
 ### 6.2 ตารางรายละเอียด AP ที่พบจากการสแกนทั่วไป (ข้อ 5.1.1)
 
 | ลำดับ | ชื่อเครือข่าย (SSID) | MAC Address (BSSID) | ความแรงสัญญาณ (RSSI: dBm) | ช่องความถี่ (Channel) | ประเภทการเข้ารหัส (Encryption Type) |
-| :---: | :------------------- | :------------------ | :-----------------------: | :-------------------: | :---------------------------------- |
-|   1   |                      |                     |                           |                       |                                     |
-|   2   |                      |                     |                           |                       |                                     |
-|   3   |                      |                     |                           |                       |                                     |
-|   4   |                      |                     |                           |                       |                                     |
-|   5   |                      |                     |                           |                       |                                     |
+| :---: | :--- | :--- | :---: | :---: | :--- |
+| 1 | | | | | |
+| 2 | | | | | |
+| 3 | | | | | |
+| 4 | | | | | |
+| 5 | | | | | |
 
 ---
 
 ## 7. คำถามท้ายการทดลอง (Post-Lab Questions)
 
 1. การกำหนดค่าในโครงสร้าง `wifi_scan_config_t` สำหรับสแกนเจาะจงเฉพาะช่องความถี่ (ข้อ 5.1.2) ช่วยลดเวลาในการสแกนเมื่อเทียบกับการสแกนทุกช่องความถี่ (ข้อ 5.1.1) อย่างไร และมีข้อจำกัดอย่างไร?
+
+	ตอบ ปกติเวลา ESP32 สแกนแบบทั่วไป (ข้อ 5.1.1) มันจะต้องกระโดดกวาดหาทีละช่องตั้งแต่ Channel 1 ไปจนถึง Channel 13 โดยแต่ละช่องจะต้องหยุดรอฟังเสียงส่งสัญญาณ (Beacon Frame) จาก Router แว๊บหนึ่ง ซึ่งใช้เวลารวมๆ ประมาณ 1.5 - 3 วินาที แต่พอเราล็อกให้หาแค่ **Channel 1** ช่องเดียว (ข้อ 5.1.2) ตัวชิปมันก็จะฟังอยู่แค่ช่องนั้นช่องเดียว ไม่ต้องเสียเวลาไปกวาดช่องอื่น ผลคือสแกนเสร็จไวขึ้น
+	ข้อจำกัด ถ้า Router เปลี่ยนช่องสัญญาณหนี หรือถ้าเราจำ Channel ของ AP เป้าหมายผิด ตัว ESP32 ก็จะ**หา Router นั้นไม่เจอเลย**ครับ เพราะมันไม่ได้ไปมองหาที่ช่องอื่นเลย
+	
 2. เมื่อสังเกตผล Forensic Log ในข้อ 5.1.4 (สแกนหา SSID ที่ไม่มีอยู่จริง) ฟังก์ชัน `esp_wifi_scan_start()`, `esp_wifi_scan_get_ap_num()` และ `esp_wifi_scan_get_ap_records()` ส่งคืนค่าอย่างไร?
+
+	ตอบ เวลาเราสั่งสแกนหา SSID ปลอมที่ไม่มีอยู่จริง ระบบจะไม่ได้ขึ้น Error รุนแรงหรือโปรแกรมค้างครับ แต่จะตอบกลับมาตามลำดับ
+	**`esp_wifi_scan_start()`** ➔ ส่งคืนค่า `ESP_OK` (0x0) ปกติเลยครับ เพราะคำสั่งเริ่มต้นสแกน สำเร็จ
+	**`esp_wifi_scan_get_ap_num()`** ➔ ส่งคืนค่า `ESP_OK` แต่ตัวแปรที่รับค่าจำนวน AP จะได้เลข **`0`** (เพราะสแกนเสร็จแล้วไม่เจอใครเลย)
+	**`esp_wifi_scan_get_ap_records()`** ➔ ส่งคืนค่า `ESP_OK` เช่นกัน แต่ array หรือ buffer ที่ใส่ข้อมูล AP จะว่างเปล่า (ไม่มีข้อมูล AP ถูกเขียนลงมา)
+	
 3. ค่าระดับความแรงสัญญาณ (RSSI) ที่แสดงเป็นตัวเลขติดลบ (เช่น -45 dBm กับ -80 dBm) ค่าใดแสดงถึงสัญญาณที่มีความแรงและความเสถียรมากกว่ากัน?
+
+	ตอบ ค่า -45 dBm แรงและเสถียรกว่า
+	-45 dBm ➔ สัญญาณแรงมาก เหมือนนั่งอยู่ข้างๆ Router เน็ตวิ่งฉิ่ว ความเสถียรสูง
+	-80 dBm ➔ สัญญาณอ่อนมาก เหมือนอยู่นอกบ้านหรือมีกำแพงบัง สัญญาณอาจจะหลุดๆ ดับๆ หรือต่อไม่ติดได้เลย
+	
 4. เหตุใดการดึงค่า `authmode` (`wifi_auth_mode_t`) จากโครงสร้าง `wifi_ap_record_t` จึงมีความสำคัญต่อการเตรียมการในเฟสถัดไป (Authentication & Association Phase)?
+
+	ตอบ Router แต่ละตัวใช้ระบบใส่รหัสผ่านไม่เหมือนกัน การที่เราดึงค่า authmode ออกมาดูก่อน ทำให้เรา และตัว ESP32 รู้ล่วงหน้าว่า Router เครื่องนี้เป็นแบบไหน
+	ถ้าเราไม่เช็ค authmode ให้ดี แล้วเราเผลอตั้งค่าในโค้ดฝั่ง ESP32 ไม่ตรงกับที่ Router ใช้ เวลาข้ามไปเฟสถัดไป ตอนที่ ESP32 พยายามจะยื่นขอ Authentication หรือจับมือ 4-Way Handshake ตัว Router ก็จะปฏิเสธการเชื่อมต่อทันที
+
+
+** command log **
+
+```
+Running idf_monitor in directory D:\Week-05-Wi-Fi-ESP32\wi-fi
+Executing "C:\Espressif\tools\python\v6.0.2\venv\Scripts\python.exe C:\esp\v6.0.2\esp-idf\tools/idf_monitor.py -p COM3 -b 115200 --toolchain-prefix xtensa-esp32-elf- --target esp32 --revision 0 D:\Week-05-Wi-Fi-ESP32\wi-fi\build\wi-fi.elf D:\Week-05-Wi-Fi-ESP32\wi-fi\build\bootloader\bootloader.elf --force-color -m 'C:\Espressif\tools\python\v6.0.2\venv\Scripts\python.exe' 'C:\esp\v6.0.2\esp-idf\tools\idf.py'"...
+--- Warning: GDB cannot open serial ports accessed as COMx
+--- Using \\.\COM3 instead...
+--- esp-idf-monitor 1.9.0 on \\.\COM3 115200
+--- Quit: Ctrl+] | Menu: Ctrl+T | Help: Ctrl+T followed by Ctrl+H
+��J��ѹesp32: �ets Jul 29 2019 12:21:46
+
+rst:0x1 (POWERON_RESET),boot:0x13 (SPI_FAST_FLASH_BOOT)
+configsip: 0, SPIWP:0xee
+clk_drv:0x00,q_drv:0x00,d_drv:0x00,cs0_drv:0x00,hd_drv:0x00,wp_drv:0x00
+mode:DIO, clock div:2
+load:0x3fff0040,len:6272
+load:0x40078000,len:15820
+load:0x40080400,len:3920
+--- 0x40080400: _invalid_pc_placeholder at C:/esp/v6.0.2/esp-idf/components/xtensa/xtensa_vectors.S:2259
+entry 0x40080644
+--- 0x40080644: call_start_cpu0 at C:/esp/v6.0.2/esp-idf/components/bootloader/subproject/main/bootloader_start.c:27
+I (27) boot: ESP-IDF v6.0.2 2nd stage bootloader
+I (27) boot: compile time Aug  3 2026 10:20:44
+I (28) boot: Multicore bootloader
+I (29) boot: chip revision: v3.1
+I (32) boot.esp32: SPI Speed      : 40MHz
+I (35) boot.esp32: SPI Mode       : DIO
+I (39) boot.esp32: SPI Flash Size : 2MB
+I (42) boot: Enabling RNG early entropy source...
+I (47) boot: Partition Table:
+I (49) boot: ## Label            Usage          Type ST Offset   Length
+I (56) boot:  0 nvs              WiFi data        01 02 00009000 00006000
+I (62) boot:  1 phy_init         RF data          01 01 0000f000 00001000
+I (69) boot:  2 factory          factory app      00 00 00010000 00100000
+I (75) boot: End of partition table
+I (79) esp_image: segment 0: paddr=00010020 vaddr=3f400020 size=1a31ch (107292) map
+I (124) esp_image: segment 1: paddr=0002a344 vaddr=3ffb0000 size=04528h ( 17704) load
+I (132) esp_image: segment 2: paddr=0002e874 vaddr=40080000 size=017a4h (  6052) load
+I (134) esp_image: segment 3: paddr=00030020 vaddr=400d0020 size=85f00h (548608) map
+I (331) esp_image: segment 4: paddr=000b5f28 vaddr=400817a4 size=13e64h ( 81508) load
+I (365) esp_image: segment 5: paddr=000c9d94 vaddr=50000000 size=00028h (    40) load
+I (376) boot: Loaded app from partition at offset 0x10000
+I (376) boot: Disabling RNG early entropy source...
+I (387) cpu_start: Multicore app
+I (395) cpu_start: GPIO 3 and 1 are used as console UART I/O pins
+I (395) cpu_start: Pro cpu start user code
+I (395) cpu_start: cpu freq: 160000000 Hz
+I (397) app_init: Application information:
+I (401) app_init: Project name:     wi-fi
+I (404) app_init: App version:      37de524-dirty
+I (409) app_init: Compile time:     Aug  3 2026 10:19:57
+I (414) app_init: ELF file SHA256:  4c3ae2b8f...
+I (418) app_init: ESP-IDF:          v6.0.2
+I (422) efuse_init: Min chip rev:     v0.0
+I (426) efuse_init: Max chip rev:     v3.99 
+I (430) efuse_init: Chip rev:         v3.1
+I (434) heap_init: Initializing. RAM available for dynamic allocation:
+I (440) heap_init: At 3FFAE6E0 len 00001920 (6 KiB): DRAM
+I (445) heap_init: At 3FFB8A20 len 000275E0 (157 KiB): DRAM
+I (450) heap_init: At 3FFE0440 len 00003AE0 (14 KiB): D/IRAM
+I (456) heap_init: At 3FFE4350 len 0001BCB0 (111 KiB): D/IRAM
+I (461) heap_init: At 40095608 len 0000A9F8 (42 KiB): IRAM
+I (468) spi_flash: detected chip: generic
+I (470) spi_flash: flash io: dio
+W (473) spi_flash: Detected size(4096k) larger than the size in the binary image header(2048k). Using the size in the binary image header.
+I (487) main_task: Started on CPU0
+I (487) main_task: Calling app_main()
+I (487) LAB_WIFI_SCAN: [FORENSIC]: Call nvs_flash_init()
+I (517) LAB_WIFI_SCAN: [FORENSIC]: nvs_flash_init() returned ESP_OK (0x0)
+I (517) LAB_WIFI_SCAN: [FORENSIC]: Call esp_netif_init()
+I (517) LAB_WIFI_SCAN: [FORENSIC]: Call esp_event_loop_create_default()
+I (527) LAB_WIFI_SCAN: [FORENSIC]: Call esp_netif_create_default_wifi_sta()
+I (527) LAB_WIFI_SCAN: [FORENSIC]: esp_netif_create_default_wifi_sta() returned pointer 0x3ffbdd78
+I (537) LAB_WIFI_SCAN: [FORENSIC]: Call esp_wifi_init(&cfg)
+I (557) wifi:wifi driver task: 3ffc0464, prio:23, stack:6656, core=0
+I (567) wifi:wifi firmware version: 00ad238
+I (567) wifi:wifi certification version: v7.0
+I (567) wifi:config NVS flash: enabled
+I (567) wifi:config nano formatting: disabled
+I (577) wifi:Init data frame dynamic rx buffer num: 32
+I (577) wifi:Init static rx mgmt buffer num: 5
+I (577) wifi:Init management short buffer num: 32
+I (587) wifi:Init dynamic tx buffer num: 32
+I (587) wifi:Init static rx buffer size: 1600
+I (597) wifi:Init static rx buffer num: 10
+I (597) wifi:Init dynamic rx buffer num: 32
+I (607) wifi_init: rx ba win: 6
+I (607) wifi_init: accept mbox: 6
+I (607) wifi_init: tcpip mbox: 32
+I (607) wifi_init: udp mbox: 6
+I (617) wifi_init: tcp mbox: 6
+I (617) wifi_init: tcp tx win: 5760
+I (617) wifi_init: tcp rx win: 5760
+I (627) wifi_init: tcp mss: 1440
+I (627) wifi_init: WiFi IRAM OP enabled
+I (627) wifi_init: WiFi RX IRAM OP enabled
+I (637) LAB_WIFI_SCAN: [FORENSIC]: Call esp_wifi_set_mode(WIFI_MODE_STA)
+I (637) LAB_WIFI_SCAN: [FORENSIC]: Call esp_wifi_start()
+I (647) phy_init: phy_version 4863,a3a4459,Oct 28 2025,14:30:06
+W (647) phy_init: failed to load RF calibration data (0xffffffff), falling back to full calibration
+I (727) phy_init: Saving new calibration data due to checksum failure or outdated calibration data, mode(2)
+I (747) wifi:mode : sta (14:33:5c:0d:d5:4c)
+I (747) wifi:enable tsf
+I (747) LAB_WIFI_SCAN: ==================================================================
+I (747) LAB_WIFI_SCAN:   Lab 5.1: Wi-Fi Connection and Scanning Phase (ESP-IDF Forensic)
+I (757) LAB_WIFI_SCAN: ==================================================================
+I (767) LAB_WIFI_SCAN: ------------------------------------------------------------------
+I (767) LAB_WIFI_SCAN: >>> Experiment 5.1.1: General AP Scan (All Channels)
+I (777) LAB_WIFI_SCAN: ------------------------------------------------------------------
+I (787) LAB_WIFI_SCAN: [FORENSIC]: Call esp_wifi_scan_start(scan_config, block=true)
+I (3297) LAB_WIFI_SCAN: [FORENSIC]: esp_wifi_scan_start() returned ESP_OK (0x0) [Duration: 2498 ms]
+I (3297) LAB_WIFI_SCAN: [FORENSIC]: Call esp_wifi_scan_get_ap_num(&ap_count)
+I (3297) LAB_WIFI_SCAN: [FORENSIC]: esp_wifi_scan_get_ap_num() returned ESP_OK (0x0), ap_count=12
+I (3307) LAB_WIFI_SCAN: [STATUS]: Scan SUCCESS
+I (3307) LAB_WIFI_SCAN: [AP COUNT]: 12 network(s) found
+I (3317) LAB_WIFI_SCAN: [FORENSIC]: Call esp_wifi_scan_get_ap_records(&number, ap_info)
+I (3327) LAB_WIFI_SCAN: [FORENSIC]: esp_wifi_scan_get_ap_records() returned ESP_OK (0x0), records=12
+
+--------------------------------------------------------------------------------------------------
+No.  | SSID                     | MAC Address (BSSID) | RSSI   | Chan | Encryption Type     
+--------------------------------------------------------------------------------------------------
+1    | KMITL-WIFI               | 78:17:BE:C0:7D:A1 | -51  dBm | 1    | OPEN (No Password)  
+2    | KMITL-Legacy             | 78:17:BE:C0:7D:A0 | -52  dBm | 1    | WPA2_ENTERPRISE     
+3    | KMITL-IoT                | 78:17:BE:C0:7D:A2 | -52  dBm | 1    | WPA2_PSK            
+4    | 😑                     | 62:DD:AB:3C:2D:A6 | -59  dBm | 11   | WPA2_PSK            
+5    | FUB                      | EA:67:85:97:BF:39 | -60  dBm | 10   | WPA2_PSK            
+6    | PhuwishP                 | 82:CA:F7:29:29:6C | -62  dBm | 1    | WPA2_PSK            
+7    | Redmi Note 10S           | 66:34:B4:F7:03:8A | -68  dBm | 5    | WPA2_PSK            
+8    | KMITL-Legacy             | 78:17:BE:C0:72:60 | -79  dBm | 11   | WPA2_ENTERPRISE     
+9    | KMITL-IoT                | 78:17:BE:C0:72:62 | -79  dBm | 11   | WPA2_PSK            
+10   | KMITL-IoT                | 78:17:BE:C0:66:62 | -87  dBm | 11   | WPA2_PSK            
+11   | dlink                    | C4:A8:1D:93:89:30 | -88  dBm | 11   | OPEN (No Password)  
+12   | OPPO A6c                 | 76:6F:DB:F8:72:E4 | -91  dBm | 12   | WPA2_WPA3_PSK       
+--------------------------------------------------------------------------------------------------
+
+I (4467) LAB_WIFI_SCAN: ------------------------------------------------------------------
+I (4467) LAB_WIFI_SCAN: >>> Experiment 5.1.2: Channel-Specific Scan (Channel 1)
+I (4467) LAB_WIFI_SCAN: ------------------------------------------------------------------
+I (4477) LAB_WIFI_SCAN: [FORENSIC]: Call esp_wifi_scan_start(scan_config, block=true)
+I (4687) LAB_WIFI_SCAN: [FORENSIC]: esp_wifi_scan_start() returned ESP_OK (0x0) [Duration: 200 ms]
+I (4687) LAB_WIFI_SCAN: [FORENSIC]: Call esp_wifi_scan_get_ap_num(&ap_count)
+I (4687) LAB_WIFI_SCAN: [FORENSIC]: esp_wifi_scan_get_ap_num() returned ESP_OK (0x0), ap_count=3
+I (4697) LAB_WIFI_SCAN: [STATUS]: Scan SUCCESS
+I (4697) LAB_WIFI_SCAN: [AP COUNT]: 3 network(s) found
+I (4707) LAB_WIFI_SCAN: [FORENSIC]: Call esp_wifi_scan_get_ap_records(&number, ap_info)
+I (4717) LAB_WIFI_SCAN: [FORENSIC]: esp_wifi_scan_get_ap_records() returned ESP_OK (0x0), records=3
+
+--------------------------------------------------------------------------------------------------
+No.  | SSID                     | MAC Address (BSSID) | RSSI   | Chan | Encryption Type     
+--------------------------------------------------------------------------------------------------
+1    | PhuwishP                 | 82:CA:F7:29:29:6C | -60  dBm | 1    | WPA2_PSK            
+2    | KMITL-Legacy             | 78:17:BE:C0:66:20 | -80  dBm | 1    | WPA2_ENTERPRISE     
+3    | KMITL-IoT                | 78:17:BE:C0:66:22 | -80  dBm | 1    | WPA2_PSK            
+--------------------------------------------------------------------------------------------------
+
+I (5777) LAB_WIFI_SCAN: ------------------------------------------------------------------
+I (5777) LAB_WIFI_SCAN: >>> Experiment 5.1.3: Targeted SSID Scan - Existing ("KMITL-WIFI")
+I (5777) LAB_WIFI_SCAN: ------------------------------------------------------------------
+I (5787) LAB_WIFI_SCAN: [FORENSIC]: Call esp_wifi_scan_start(scan_config, block=true)
+I (8297) LAB_WIFI_SCAN: [FORENSIC]: esp_wifi_scan_start() returned ESP_OK (0x0) [Duration: 2499 ms]
+I (8297) LAB_WIFI_SCAN: [FORENSIC]: Call esp_wifi_scan_get_ap_num(&ap_count)
+I (8297) LAB_WIFI_SCAN: [FORENSIC]: esp_wifi_scan_get_ap_num() returned ESP_OK (0x0), ap_count=4
+I (8307) LAB_WIFI_SCAN: [STATUS]: Scan SUCCESS
+I (8307) LAB_WIFI_SCAN: [AP COUNT]: 4 network(s) found
+I (8317) LAB_WIFI_SCAN: [FORENSIC]: Call esp_wifi_scan_get_ap_records(&number, ap_info)
+I (8327) LAB_WIFI_SCAN: [FORENSIC]: esp_wifi_scan_get_ap_records() returned ESP_OK (0x0), records=4
+
+--------------------------------------------------------------------------------------------------
+No.  | SSID                     | MAC Address (BSSID) | RSSI   | Chan | Encryption Type     
+--------------------------------------------------------------------------------------------------
+1    | KMITL-WIFI               | 78:17:BE:C0:7D:A1 | -52  dBm | 1    | OPEN (No Password)  
+2    | KMITL-WIFI               | 78:17:BE:C0:72:61 | -77  dBm | 11   | OPEN (No Password)  
+3    | KMITL-WIFI               | 78:17:BE:A9:94:E1 | -78  dBm | 6    | OPEN (No Password)  
+4    | KMITL-WIFI               | 78:17:BE:C0:66:21 | -86  dBm | 1    | OPEN (No Password)  
+--------------------------------------------------------------------------------------------------
+
+I (9397) LAB_WIFI_SCAN: ------------------------------------------------------------------
+I (9397) LAB_WIFI_SCAN: >>> Experiment 5.1.4: Targeted SSID Scan - Non-Existent ("NON_EXISTENT_AP_9999")
+I (9397) LAB_WIFI_SCAN: ------------------------------------------------------------------
+I (9407) LAB_WIFI_SCAN: [FORENSIC]: Call esp_wifi_scan_start(scan_config, block=true)
+I (11917) LAB_WIFI_SCAN: [FORENSIC]: esp_wifi_scan_start() returned ESP_OK (0x0) [Duration: 2498 ms]
+I (11917) LAB_WIFI_SCAN: [FORENSIC]: Call esp_wifi_scan_get_ap_num(&ap_count)
+I (11917) LAB_WIFI_SCAN: [FORENSIC]: esp_wifi_scan_get_ap_num() returned ESP_OK (0x0), ap_count=0
+I (11927) LAB_WIFI_SCAN: [STATUS]: Scan SUCCESS
+I (11927) LAB_WIFI_SCAN: [AP COUNT]: 0 network(s) found
+W (11937) LAB_WIFI_SCAN: [NOTE]: No Access Point found matching the criteria.
+I (11937) LAB_WIFI_SCAN: ==================================================================
+I (11947) LAB_WIFI_SCAN:   [Phase 1 Completed: Wi-Fi Scan Finished]
+I (11957) LAB_WIFI_SCAN:   Program stopped after scanning. Auth/Assoc Phase not started.
+I (11967) LAB_WIFI_SCAN: ==================================================================
+I (11967) main_task: Returned from app_main()
+
+```

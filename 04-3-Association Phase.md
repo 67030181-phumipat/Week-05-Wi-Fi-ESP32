@@ -6,8 +6,26 @@
 
 ## 1. ลำดับการแลกเปลี่ยนแพ็กเกจ Association (Sequence Diagram)
 
-<p align="center"><img src="Images/Fig_04-3-Association_Phase_2026-10-25T09-41-08_academic.svg" alt="04-3-Association_Phase" ></p>
-<p align="center"><b>รูปที่ 4 </b>  ลำดับการแลกเปลี่ยนแพ็กเกจ Association</p>
+```mermaid
+sequenceDiagram
+    autonumber
+    participant STA as ESP32 (Station)
+    participant AP as Access Point (Router)
+
+    note over STA: เริ่มต้น Association Timer
+    STA->>AP: 802.11 Association Request<br/>(ส่ง Supported Rates, Capabilities, Listen Interval)
+    
+    alt AP ยอมรับการผูกสัมพันธ์ (Association Success)
+        AP-->>STA: 802.11 Association Response<br/>(Status: Successful, มอบหมาย AID เช่น AID=1)
+        note over STA: หยุด Association Timer -> เข้าสู่ 4-Way Handshake Phase
+    else AP ไม่ตอบกลับในเวลาที่กำหนด (Assoc Timeout)
+        note over STA: Association Timer หมดเวลา (Expired)
+        note over STA: ส่ง Event WIFI_EVENT_STA_DISCONNECTED<br/>(Reason: WIFI_REASON_ASSOC_EXPIRE)
+    else AP ปฏิเสธ เช่น Client เต็ม (Assoc Rejected)
+        AP-->>STA: 802.11 Association Response<br/>(Status: Failure / AP Unable to handle more STAs)
+        note over STA: ส่ง Event WIFI_EVENT_STA_DISCONNECTED<br/>(Reason: WIFI_REASON_ASSOC_TOOMANY / ASSOC_FAIL)
+    end
+```
 
 ---
 
@@ -28,11 +46,11 @@
 
 ## 3. ตารางสรุป Result Code ใน Association Phase
 
-| Reason Code Constant        | รหัสตัวเลข | สื่อความหมายถึง                    | สาเหตุที่อาจเกิดขึ้นในทางปฏิบัติ                             |
-| :-------------------------- | :--------- | :--------------------------------- | :----------------------------------------------------------- |
-| `WIFI_REASON_ASSOC_FAIL`    | 3          | AP ปฏิเสธการผูกสัมพันธ์            | คุณสมบัติเครือข่ายไม่ตรงกัน (Capability Mismatch)            |
-| `WIFI_REASON_ASSOC_EXPIRE`  | 4          | หมดเวลาการรอคำตอบ Association      | สัญญาณรบกวนสูง แพ็กเกจตกหล่น                                 |
-| `WIFI_REASON_ASSOC_TOOMANY` | 17         | AP ไม่สามารถรับ Client เพิ่มได้อีก | อุปกรณ์ที่ต่อ Router เต็มจำนวนที่กำหนดไว้ (Max STA Exceeded) |
+| Reason Code Constant | รหัสตัวเลข | สื่อความหมายถึง | สาเหตุที่อาจเกิดขึ้นในทางปฏิบัติ |
+| :--- | :--- | :--- | :--- |
+| `WIFI_REASON_ASSOC_FAIL` | 3 | AP ปฏิเสธการผูกสัมพันธ์ | คุณสมบัติเครือข่ายไม่ตรงกัน (Capability Mismatch) |
+| `WIFI_REASON_ASSOC_EXPIRE` | 4 | หมดเวลาการรอคำตอบ Association | สัญญาณรบกวนสูง แพ็กเกจตกหล่น |
+| `WIFI_REASON_ASSOC_TOOMANY` | 17 | AP ไม่สามารถรับ Client เพิ่มได้อีก | อุปกรณ์ที่ต่อ Router เต็มจำนวนที่กำหนดไว้ (Max STA Exceeded) |
 
 ---
 

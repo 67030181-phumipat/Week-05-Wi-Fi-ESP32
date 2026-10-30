@@ -26,13 +26,50 @@
 
 ### 3.1 ลำดับขั้นการทำงานในระดับ Link Layer (Sequence Diagram)
 
-<p align="center"><img src="Images/Fig_09-Labsheet-05-3-Wi-Fi-Auth-Assoc-Phase_2026-10-25T09-52-10_academic.svg" alt="09-Labsheet-05-3-Wi-Fi-Auth-Assoc-Phase" ></p>
-<p align="center"><b>รูปที่</b> 3.1 ลำดับขั้นการทำงานในระดับ Link Layer (Sequence Diagram)</p>
+```mermaid
+sequenceDiagram
+    autonumber
+    participant STA as ESP32 (Station)
+    participant AP as Access Point (Router)
+
+    rect rgb(240, 248, 255)
+        note over STA, AP: Phase 2: 802.11 Open System Authentication
+        STA->>AP: 802.11 Auth Request (Algorithm: Open System)
+        AP-->>STA: 802.11 Auth Response (Status: Success)
+    end
+
+    rect rgb(255, 245, 238)
+        note over STA, AP: Phase 3: 802.11 Association
+        STA->>AP: 802.11 Assoc Request (Capabilities, Supported Rates)
+        AP-->>STA: 802.11 Assoc Response (Status: Success, Assigned AID)
+    end
+
+    note over STA: Wi-Fi Driver ปล่อย Event: WIFI_EVENT_STA_CONNECTED<br/>(Link Layer Association Complete!)
+```
 
 ### 3.2 โครงสร้างข้อมูล `wifi_event_sta_connected_t` (Class Diagram)
 
-<p align="center"><img src="Images/Fig_09-Labsheet-05-3-Wi-Fi-Auth-Assoc-Phase_2026-10-25T09-52-22_academic.svg" alt="09-Labsheet-05-3-Wi-Fi-Auth-Assoc-Phase"  width = "400 px"></p>
-<p align="center"><b>รูปที่</b> 3.2 โครงสร้างข้อมูล `wifi_event_sta_connected_t` (Class Diagram)</p>
+```mermaid
+classDiagram
+    class wifi_event_sta_connected_t {
+        +uint8_t[33] ssid
+        +uint8_t ssid_len
+        +uint8_t[6] bssid
+        +uint8_t channel
+        +wifi_auth_mode_t authmode
+        +uint16_t aid
+    }
+    class wifi_auth_mode_t {
+        <<enumeration>>
+        WIFI_AUTH_OPEN
+        WIFI_AUTH_WEP
+        WIFI_AUTH_WPA_PSK
+        WIFI_AUTH_WPA2_PSK
+        WIFI_AUTH_WPA3_PSK
+    }
+
+    wifi_event_sta_connected_t "1" *-- "1" wifi_auth_mode_t : specifies
+```
 
 ---
 
@@ -281,10 +318,10 @@ void app_main(void) {
 
 ### 6.1 ตารางสรุปเปรียบเทียบผลการทดลองในระดับ Link Layer
 
-| ข้อการทดลอง | สถานการณ์ทดสอบ                           | Event ที่ได้รับ | ผลการผูกสัมพันธ์ Link Layer | ค่า Association ID (AID) ที่ได้ | Reason Code (ถ้ามี) |
-| :---------: | :--------------------------------------- | :-------------: | :-------------------------: | :-----------------------------: | :------------------ |
-|  **5.3.1**  | ร้องขอ Auth & Assoc กับ AP มีอยู่จริง    |                 |                             |                                 |                     |
-|  **5.3.2**  | ร้องขอ Auth & Assoc กับ AP ไม่มีอยู่จริง |                 |                             |                                 |                     |
+| ข้อการทดลอง | สถานการณ์ทดสอบ | Event ที่ได้รับ | ผลการผูกสัมพันธ์ Link Layer | ค่า Association ID (AID) ที่ได้ | Reason Code (ถ้ามี) |
+| :---: | :--- | :---: | :---: | :---: | :--- |
+| **5.3.1** | ร้องขอ Auth & Assoc กับ AP มีอยู่จริง | | | | |
+| **5.3.2** | ร้องขอ Auth & Assoc กับ AP ไม่มีอยู่จริง | | | | |
 
 ### 6.2 บันทึกข้อมูล Link Layer จาก Event `WIFI_EVENT_STA_CONNECTED` (ข้อ 5.3.1)
 
@@ -301,6 +338,242 @@ void app_main(void) {
 ## 7. คำถามท้ายการทดลอง (Post-Lab Questions)
 
 1. **Association ID (AID)** คืออะไร มีบทบาทอย่างไรใน Phase 3 และส่งคืนมาในโครงสร้างข้อมูลตัวแปรใด?
+
+	ตอบ AID เปรียบเสมือน บัตรคิว หรือ เลขแท็กประจำตัวที่ Router ออกให้ ESP32
+	บทบาท Phase3 ในเครือข่าย Wi-Fi มีอุปกรณ์ต่อใช้งานเยอะ พอบอร์ดเราผ่านขั้นตอน Association สื่อสารกันสำเร็จ Router จะแจก AID (เป็นตัวเลข 1, 2, 3...) เพื่อใช้เป็นดัชนีอ้างอิงบอร์ด ESP32 ของเราโดยเฉพาะ ทำให้ Router จัดการคิวรับ-ส่งข้อมูล และควบคุมโหมดประหยัดพลังงาน ให้บอร์ดเราได้อย่างถูกต้อง
+	ส่งคืนมาในตัวแปร **`event->aid`** ซึ่งแกะมาจากโครงสร้างข้อมูล **`wifi_event_sta_connected_t`** ใน Event Handler ตอนที่เกิดเหตุการณ์ `WIFI_EVENT_STA_CONNECTED`
+	
 2. เหตุใดการเชื่อมต่อ Wi-Fi ความปลอดภัยแบบ WPA2-PSK จึงสามารถผ่าน Phase 2 (Authentication) และ Phase 3 (Association) จนเกิด Event `WIFI_EVENT_STA_CONNECTED` ได้สำเร็จ แม้ผู้ใช้จะป้อนรหัสผ่าน (Password) ผิด?
+
+	ตอบ Phase 2  เป็นการยื่นหมูยื่นแมวระดับ Open System แค่บอกว่า ฉันเป็น ESP32 ขอต่อ Wi-Fi นะ Router ก็ตอบว่า โอเค อนุญาตให้เข้าสู่ขั้นตอนต่อไปได้
+	Phase 3 (Association) เป็นการตกลงสเปกอุปกรณ์กัน เช่น ใช้ความเร็วเท่าไหร่, สัญญาณเป็นแบบไหน แล้ว Router ก็จะแจก AID ให้
+	ผลลัพธ์ พอลอดผ่าน Phase 3 มาได้ ESP-IDF จะมองว่า ฮาร์ดแวร์จับคู่กันสำเร็จแล้ว (Link-Layer Connected) จึงสั่งยิง Event `WIFI_EVENT_STA_CONNECTED` ออกมาทันที
+	ส่วน Password  จะถูกนำไปตรวจใน Phase 4 (4-Way Handshake) ที่ตามมาทีหลังครับ ดังนั้นใส่รหัสผิดก็เลยผ่าน Phase 2 และ 3 ได้สบายๆ แต่จะไปโดน Router เตะออกตอน Phase 4 แทน
+	
 3. หาก Router มีการตั้งค่า **MAC Address Filtering** (อนุญาตเฉพาะ MAC ที่ลงทะเบียน) ESP32 จะล้มเหลวในเฟสใด และจะส่ง Disconnect Reason Code ใดออกมา?
+
+	ตอบ ล้มเหลวใน Phase 3
+	ESP32 จะส่งคำขอจับคู่ (Association Request) ซึ่งมี MAC Address ของตัวมันติดไปด้วย พอ Router แอบส่องดูรายการ แล้วพบว่า MAC นี้ไม่อยู่ในรายการที่อนุญาต (Whitelist) Router จะปฏิเสธการเชื่อมต่อทันที 
+	Reason Code ที่ได้ มักจะได้ Reason Code 203 (`WIFI_REASON_ASSOC_FAIL`) หรือ Reason Code 1/202 (`WIFI_REASON_AUTH_FAIL`) ขึ้นอยู่กับว่าตัว Router เลือกตัดสายทิ้งในจังหวะ Auth หรือ Assoc
+	
 4. สรุปความแตกต่างสำคัญระหว่างจุดสิ้นสุดของ **Phase 3 (Link-Layer Connected)** กับจุดสิ้นสุดของ **Phase 5 (IP Address Assigned)**
+	
+	ตอบ 
+	1. ระดับชั้นการสื่อสาร
+		จุดสิ้นสุด Phase 3 อยู่ในระดับ **Layer 2 (Data Link Layer)** เป็นเพียงการสถาปนาการเชื่อมต่อทางฮาร์ดแวร์และสัญญาณวิทยุ
+		จุดสิ้นสุด Phase 5 ขึ้นมาถึงระดับ **Layer 3 (Network Layer)** เป็นการสถาปนาการเชื่อมต่อในระบบเครือข่ายเชิงตรรกะ
+	2. สถานะการตรวจสอบรหัสผ่าน
+		จุดสิ้นสุด Phase 3 ยังไม่ได้ตรวจรหัสผ่าน (ผ่านแค่การทักทายและตกลงสเปกอุปกรณ์) รหัสผ่านจะถูกหรือผิดยังไม่รู้ในขั้นนี้
+		จุดสิ้นสุด Phase 5 ตรวจสอบรหัสผ่านสำเร็จแล้ว (ผ่าน Phase 4 หรือ 4-Way Handshake มาเรียบร้อยแล้ว)
+	3. การได้รับหมายเลขระบุตัวตน
+		จุดสิ้นสุด Phase 3 ได้รับเฉพาะ Association ID (AID) ซึ่งเป็นเลขคิวประจำตัวจาก Router เอาไว้ระบุฮาร์ดแวร์
+		จุดสิ้นสุด Phase 5 ได้รับ IP Address, Subnet Mask และ Default Gateway จาก DHCP Server เอาไว้ระบุตัวตนในเครือข่าย
+	4. ความสามารถในการส่งข้อมูลและการใช้งานจริง
+		จุดสิ้นสุด Phase 3 ส่งได้แค่ Frame ข้อมูลระดับฮาร์ดแวร์ระหว่างอุปกรณ์ ยังไม่อาจใช้งานอินเทอร์เน็ตได้
+		จุดสิ้นสุด Phase 5 พร้อมใช้งานอินเทอร์เน็ตได้เต็มรูปแบบ สามารถรับ-ส่งข้อมูลระดับโปรโตคอล TCP/IP, HTTP, MQTT หรือ Socket ได้ทันที
+	5. Event ที่แจ้งเตือนในระบบ ESP-IDF
+		จุดสิ้นสุด Phase 3 เกิดเหตุการณ์ **`WIFI_EVENT_STA_CONNECTED`**
+		จุดสิ้นสุด Phase 5 เกิดเหตุการณ์ **`IP_EVENT_STA_GOT_IP`**
+
+
+** command log **
+
+
+```
+Running idf_monitor in directory D:\Week-05-Wi-Fi-ESP32\wi-fi
+Executing "C:\Espressif\tools\python\v6.0.2\venv\Scripts\python.exe C:\esp\v6.0.2\esp-idf\tools/idf_monitor.py -p COM3 -b 115200 --toolchain-prefix xtensa-esp32-elf- --target esp32 --revision 0 D:\Week-05-Wi-Fi-ESP32\wi-fi\build\wi-fi.elf D:\Week-05-Wi-Fi-ESP32\wi-fi\build\bootloader\bootloader.elf --force-color -m 'C:\Espressif\tools\python\v6.0.2\venv\Scripts\python.exe' 'C:\esp\v6.0.2\esp-idf\tools\idf.py'"...
+--- Warning: GDB cannot open serial ports accessed as COMx
+--- Using \\.\COM3 instead...
+--- esp-idf-monitor 1.9.0 on \\.\COM3 115200
+--- Quit: Ctrl+] | Menu: Ctrl+T | Help: Ctrl+T followed by Ctrl+H
+B��J��ѹesp32:�ets Jul 29 2019 12:21:46
+
+rst:0x1 (POWERON_RESET),boot:0x13 (SPI_FAST_FLASH_BOOT)
+configsip: 0, SPIWP:0xee
+clk_drv:0x00,q_drv:0x00,d_drv:0x00,cs0_drv:0x00,hd_drv:0x00,wp_drv:0x00
+mode:DIO, clock div:2
+load:0x3fff0040,len:6272
+load:0x40078000,len:15820
+load:0x40080400,len:3920
+--- 0x40080400: _invalid_pc_placeholder at C:/esp/v6.0.2/esp-idf/components/xtensa/xtensa_vectors.S:2259
+entry 0x40080644
+--- 0x40080644: call_start_cpu0 at C:/esp/v6.0.2/esp-idf/components/bootloader/subproject/main/bootloader_start.c:27
+I (27) boot: ESP-IDF v6.0.2 2nd stage bootloader
+I (27) boot: compile time Aug  3 2026 10:43:01
+I (28) boot: Multicore bootloader
+I (29) boot: chip revision: v3.1
+I (32) boot.esp32: SPI Speed      : 40MHz
+I (35) boot.esp32: SPI Mode       : DIO
+I (39) boot.esp32: SPI Flash Size : 2MB
+I (42) boot: Enabling RNG early entropy source...
+I (47) boot: Partition Table:
+I (49) boot: ## Label            Usage          Type ST Offset   Length
+I (56) boot:  0 nvs              WiFi data        01 02 00009000 00006000
+I (62) boot:  1 phy_init         RF data          01 01 0000f000 00001000
+I (69) boot:  2 factory          factory app      00 00 00010000 00100000
+I (75) boot: End of partition table
+I (79) esp_image: segment 0: paddr=00010020 vaddr=3f400020 size=1a5e8h (108008) map
+I (125) esp_image: segment 1: paddr=0002a610 vaddr=3ffb0000 size=04528h ( 17704) load
+I (132) esp_image: segment 2: paddr=0002eb40 vaddr=40080000 size=014d8h (  5336) load
+I (134) esp_image: segment 3: paddr=00030020 vaddr=400d0020 size=8625ch (549468) map
+I (332) esp_image: segment 4: paddr=000b6284 vaddr=400814d8 size=14130h ( 82224) load
+I (366) esp_image: segment 5: paddr=000ca3bc vaddr=50000000 size=00028h (    40) load
+I (377) boot: Loaded app from partition at offset 0x10000
+I (377) boot: Disabling RNG early entropy source...
+I (387) cpu_start: Multicore app
+I (396) cpu_start: GPIO 3 and 1 are used as console UART I/O pins
+I (396) cpu_start: Pro cpu start user code
+I (396) cpu_start: cpu freq: 160000000 Hz
+I (398) app_init: Application information:
+I (402) app_init: Project name:     wi-fi
+I (405) app_init: App version:      37de524-dirty
+I (410) app_init: Compile time:     Aug  3 2026 10:42:48
+I (415) app_init: ELF file SHA256:  a57c9d793...
+I (419) app_init: ESP-IDF:          v6.0.2
+I (423) efuse_init: Min chip rev:     v0.0
+I (427) efuse_init: Max chip rev:     v3.99 
+I (431) efuse_init: Chip rev:         v3.1
+I (435) heap_init: Initializing. RAM available for dynamic allocation:
+I (441) heap_init: At 3FFAE6E0 len 00001920 (6 KiB): DRAM
+I (446) heap_init: At 3FFB8A40 len 000275C0 (157 KiB): DRAM
+I (451) heap_init: At 3FFE0440 len 00003AE0 (14 KiB): D/IRAM
+I (457) heap_init: At 3FFE4350 len 0001BCB0 (111 KiB): D/IRAM
+I (462) heap_init: At 40095608 len 0000A9F8 (42 KiB): IRAM
+I (469) spi_flash: detected chip: generic
+I (471) spi_flash: flash io: dio
+W (474) spi_flash: Detected size(4096k) larger than the size in the binary image header(2048k). Using the size in the binary image header.
+I (488) main_task: Started on CPU0
+I (488) main_task: Calling app_main()
+I (488) LAB_AUTH_ASSOC: [FORENSIC]: Call nvs_flash_init()
+I (518) LAB_AUTH_ASSOC: [FORENSIC]: nvs_flash_init() returned ESP_OK (0x0)
+I (518) LAB_AUTH_ASSOC: [FORENSIC]: Call esp_netif_init()
+I (518) LAB_AUTH_ASSOC: [FORENSIC]: Call esp_event_loop_create_default()
+I (528) LAB_AUTH_ASSOC: [FORENSIC]: Call esp_netif_create_default_wifi_sta()
+I (528) LAB_AUTH_ASSOC: [FORENSIC]: esp_netif_create_default_wifi_sta() returned 0x3ffbddbc
+I (538) LAB_AUTH_ASSOC: [FORENSIC]: Call esp_wifi_init(&cfg)
+I (558) wifi:wifi driver task: 3ffc04a8, prio:23, stack:6656, core=0
+I (568) wifi:wifi firmware version: 00ad238
+I (568) wifi:wifi certification version: v7.0
+I (568) wifi:config NVS flash: enabled
+I (568) wifi:config nano formatting: disabled
+I (578) wifi:Init data frame dynamic rx buffer num: 32
+I (578) wifi:Init static rx mgmt buffer num: 5
+I (578) wifi:Init management short buffer num: 32
+I (588) wifi:Init dynamic tx buffer num: 32
+I (588) wifi:Init static rx buffer size: 1600
+I (598) wifi:Init static rx buffer num: 10
+I (598) wifi:Init dynamic rx buffer num: 32
+I (608) wifi_init: rx ba win: 6
+I (608) wifi_init: accept mbox: 6
+I (608) wifi_init: tcpip mbox: 32
+I (608) wifi_init: udp mbox: 6
+I (618) wifi_init: tcp mbox: 6
+I (618) wifi_init: tcp tx win: 5760
+I (618) wifi_init: tcp rx win: 5760
+I (628) wifi_init: tcp mss: 1440
+I (628) wifi_init: WiFi IRAM OP enabled
+I (628) wifi_init: WiFi RX IRAM OP enabled
+I (638) LAB_AUTH_ASSOC: [FORENSIC]: Call esp_event_handler_instance_register(WIFI_EVENT)
+I (638) LAB_AUTH_ASSOC: [FORENSIC]: Call esp_wifi_set_mode(WIFI_MODE_STA)
+I (648) LAB_AUTH_ASSOC: ==================================================================
+I (658) LAB_AUTH_ASSOC:   Lab 5.3: Wi-Fi Authentication & Association Phase (ESP-IDF Forensic)
+I (668) LAB_AUTH_ASSOC: ==================================================================
+I (668) LAB_AUTH_ASSOC: 
+
+I (678) LAB_AUTH_ASSOC: ------------------------------------------------------------------
+I (688) LAB_AUTH_ASSOC: >>> Experiment 5.3.1: Link-Layer Auth & Assoc Phase Test
+I (688) LAB_AUTH_ASSOC: ------------------------------------------------------------------
+I (698) LAB_AUTH_ASSOC:   Target SSID    : "ไก่ติดกาว"
+I (708) LAB_AUTH_ASSOC:   Target Password: "10101010"
+I (708) LAB_AUTH_ASSOC: [FORENSIC]: Call esp_wifi_stop()
+I (718) LAB_AUTH_ASSOC: [FORENSIC]: Call esp_wifi_set_config(WIFI_IF_STA, &wifi_config)
+W (718) wifi:Password length matches WPA2 standards, authmode threshold changes from OPEN to WPA2
+I (748) LAB_AUTH_ASSOC: [FORENSIC]: esp_wifi_set_config() returned ESP_OK (0x0)
+I (748) LAB_AUTH_ASSOC: [FORENSIC]: Call esp_wifi_start()
+I (748) phy_init: phy_version 4863,a3a4459,Oct 28 2025,14:30:06
+I (838) phy_init: Saving new calibration data due to checksum failure or outdated calibration data, mode(0)
+I (868) wifi:mode : sta (14:33:5c:0d:d5:4c)
+I (868) wifi:enable tsf
+I (868) LAB_AUTH_ASSOC: [EVENT FORENSIC]: WIFI_EVENT ID 43 received
+I (868) LAB_AUTH_ASSOC: [FORENSIC]: esp_wifi_start() returned ESP_OK (0x0)
+I (868) LAB_AUTH_ASSOC: [EVENT FORENSIC]: WIFI_EVENT_STA_START received
+I (878) LAB_AUTH_ASSOC: [FORENSIC]: Initiating 802.11 Link-Layer Connection (Auth & Assoc)...
+I (888) LAB_AUTH_ASSOC: [FORENSIC]: Call esp_wifi_connect()
+I (898) LAB_AUTH_ASSOC: [FORENSIC]: esp_wifi_connect() returned ESP_OK (0x0)
+I (1998) wifi:new:<10,0>, old:<1,0>, ap:<255,255>, sta:<10,0>, prof:1, snd_ch_cfg:0x0
+I (1998) wifi:state: init -> auth (0xb0)
+I (1998) LAB_AUTH_ASSOC: [EVENT FORENSIC]: WIFI_EVENT ID 43 received
+I (2658) wifi:state: auth -> assoc (0x0)
+I (2688) wifi:state: assoc -> run (0x10)
+I (2718) wifi:connected with ไก่ติดกาว, aid = 2, channel 10, BW20, bssid = ee:b5:07:32:c7:dc
+I (2718) wifi:security: WPA3-SAE HUNT_AND_PECK, phy: bgn, rssi: -33, cipher(pairwise:0x3, group:0x3), pmf:1
+I (2738) wifi:pm start, type: 1
+
+I (2738) wifi:dp: 1, bi: 102400, li: 3, scale listen interval from 307200 us to 307200 us
+I (2748) LAB_AUTH_ASSOC: =======================================================
+I (2748) LAB_AUTH_ASSOC: [EVENT FORENSIC]: WIFI_EVENT_STA_CONNECTED received!
+I (2748) LAB_AUTH_ASSOC:   [SUCCESS]: Phase 2 (Auth) & Phase 3 (Assoc) COMPLETED!
+I (2758) LAB_AUTH_ASSOC:   -> Connected SSID        : ไก่ติดกาว
+I (2768) LAB_AUTH_ASSOC:   -> BSSID (MAC Address)   : EE:B5:07:32:C7:DC
+I (2778) LAB_AUTH_ASSOC:   -> Channel               : 10
+I (2778) LAB_AUTH_ASSOC:   -> Auth Mode             : 6
+I (2788) LAB_AUTH_ASSOC:   -> Association ID (AID)  : 34680
+I (2788) LAB_AUTH_ASSOC: =======================================================
+I (2788) wifi:dp: 2, bi: 102400, li: 4, scale listen interval from 307200 us to 409600 us
+I (2808) wifi:AP's beacon interval = 102400 us, DTIM period = 2
+I (2808) LAB_AUTH_ASSOC: [RESULT]: TEST PASSED - Phase 2 (Auth) & Phase 3 (Assoc) Successful!
+I (2818) wifi:state: run -> init (0x0)
+I (2828) wifi:pm stop, total sleep time: 0 us / 87297 us
+
+W (2828) LAB_AUTH_ASSOC: =======================================================
+W (2838) LAB_AUTH_ASSOC: [EVENT FORENSIC]: WIFI_EVENT_STA_DISCONNECTED received!
+W (2838) LAB_AUTH_ASSOC:   -> Target SSID          : ไก่ติดกาว
+W (2848) LAB_AUTH_ASSOC:   -> Reason Code (Decimal): 8
+W (2848) LAB_AUTH_ASSOC:   -> Reason Code (Hex)    : 0x08
+W (2858) LAB_AUTH_ASSOC:   -> Reason Diagnosis     : OTHER_DISCONNECT_REASON
+W (2868) LAB_AUTH_ASSOC: =======================================================
+I (4828) LAB_AUTH_ASSOC: 
+
+I (4828) LAB_AUTH_ASSOC: ------------------------------------------------------------------
+I (4828) LAB_AUTH_ASSOC: >>> Experiment 5.3.2: Link-Layer Test - Non-Existent AP
+I (4828) LAB_AUTH_ASSOC: ------------------------------------------------------------------
+I (4838) LAB_AUTH_ASSOC:   Target SSID    : "NON_EXISTENT_AP_9999"
+I (4848) LAB_AUTH_ASSOC:   Target Password: "12345678"
+I (4848) LAB_AUTH_ASSOC: [FORENSIC]: Call esp_wifi_stop()
+I (4858) LAB_AUTH_ASSOC: [EVENT FORENSIC]: WIFI_EVENT ID 3 received
+I (4858) wifi:flush txq
+I (4858) wifi:stop sw txq
+I (4868) wifi:lmac stop hw txq
+I (4868) LAB_AUTH_ASSOC: [FORENSIC]: Call esp_wifi_set_config(WIFI_IF_STA, &wifi_config)
+W (4878) wifi:Password length matches WPA2 standards, authmode threshold changes from OPEN to WPA2
+I (4908) LAB_AUTH_ASSOC: [FORENSIC]: esp_wifi_set_config() returned ESP_OK (0x0)
+I (4908) LAB_AUTH_ASSOC: [FORENSIC]: Call esp_wifi_start()
+I (4918) wifi:mode : sta (14:33:5c:0d:d5:4c)
+I (4918) wifi:enable tsf
+I (4918) LAB_AUTH_ASSOC: [EVENT FORENSIC]: WIFI_EVENT ID 43 received
+I (4928) LAB_AUTH_ASSOC: [FORENSIC]: esp_wifi_start() returned ESP_OK (0x0)
+I (4928) LAB_AUTH_ASSOC: [EVENT FORENSIC]: WIFI_EVENT_STA_START received
+I (4938) LAB_AUTH_ASSOC: [FORENSIC]: Initiating 802.11 Link-Layer Connection (Auth & Assoc)...
+I (4948) LAB_AUTH_ASSOC: [FORENSIC]: Call esp_wifi_connect()
+I (4958) LAB_AUTH_ASSOC: [FORENSIC]: esp_wifi_connect() returned ESP_OK (0x0)
+W (7368) LAB_AUTH_ASSOC: =======================================================
+W (7368) LAB_AUTH_ASSOC: [EVENT FORENSIC]: WIFI_EVENT_STA_DISCONNECTED received!
+W (7368) LAB_AUTH_ASSOC:   -> Target SSID          : NON_EXISTENT_AP_9999
+W (7378) LAB_AUTH_ASSOC:   -> Reason Code (Decimal): 201
+W (7378) LAB_AUTH_ASSOC:   -> Reason Code (Hex)    : 0xC9
+W (7388) LAB_AUTH_ASSOC:   -> Reason Diagnosis     : WIFI_REASON_NO_AP_FOUND (201) [Phase 1: SSID Not Found]
+W (7398) LAB_AUTH_ASSOC: =======================================================
+W (7408) LAB_AUTH_ASSOC: [RESULT]: TEST FAILED - Disconnected event captured in Link-Layer.
+W (7418) LAB_AUTH_ASSOC: =======================================================
+W (7418) LAB_AUTH_ASSOC: [EVENT FORENSIC]: WIFI_EVENT_STA_DISCONNECTED received!
+W (7428) LAB_AUTH_ASSOC:   -> Target SSID          : NON_EXISTENT_AP_9999
+W (7438) LAB_AUTH_ASSOC:   -> Reason Code (Decimal): 36
+W (7438) LAB_AUTH_ASSOC:   -> Reason Code (Hex)    : 0x24
+W (7448) LAB_AUTH_ASSOC:   -> Reason Diagnosis     : OTHER_DISCONNECT_REASON
+W (7448) LAB_AUTH_ASSOC: =======================================================
+I (7458) LAB_AUTH_ASSOC: ==================================================================
+I (7468) LAB_AUTH_ASSOC:   [Phase 2 & Phase 3 Completed: Link-Layer Auth & Assoc Finished]
+I (7478) LAB_AUTH_ASSOC: ==================================================================
+I (7478) main_task: Returned from app_main()
+
+```

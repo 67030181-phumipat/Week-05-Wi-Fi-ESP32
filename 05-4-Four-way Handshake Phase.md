@@ -15,8 +15,44 @@
 
 ## 2. ลำดับการแลกเปลี่ยนแพ็กเกจ 4-Way Handshake (Sequence Diagram)
 
-<p align="center"><img src="Images/Fig_05-4-Four-way_Handshake_Phase_2026-10-25T09-41-35_academic.svg" alt="05-4-Four-way_Handshake_Phase" ></p>
-<p align="center"><b>รูปที่ 5 </b> ำดับการแลกเปลี่ยนแพ็กเกจ 4-Way Handshake</p>
+```mermaid
+sequenceDiagram
+    autonumber
+    participant STA as ESP32 (Station)
+    participant AP as Access Point (Router)
+
+    note over STA, AP: ทั้งคู่คำนวณ PMK จาก รหัสผ่าน + SSID
+
+    rect rgb(240, 255, 240)
+        note over AP: สร้าง ANonce
+        AP->>STA: 1/4 EAPOL-Key Frame (ส่ง ANonce มาให้ ESP32)
+        note over STA: รับ 1/4 EAPOL -> สร้าง SNonce -> คำนวณสร้าง PTK
+    end
+
+    rect rgb(255, 250, 240)
+        note over STA: สร้าง MIC (Message Integrity Code) จาก PTK
+        STA->>AP: 2/4 EAPOL-Key Frame (ส่ง SNonce + MIC กลับไป)
+        note over AP: รับ 2/4 EAPOL -> คำนวณ PTK -> ตรวจสอบ MIC<br/>*(ถ้ารหัสผ่านผิด MIC จะไม่ตรงกันที่จุดนี้)*
+    end
+
+    rect rgb(240, 248, 255)
+        AP->>STA: 3/4 EAPOL-Key Frame (ส่ง GTK + Confirm MIC)
+        note over STA: ตรวจสอบ MIC และติดตั้ง PTK / GTK เข้าสู่ Wi-Fi Hardware
+    end
+
+    rect rgb(255, 240, 245)
+        STA->>AP: 4/4 EAPOL-Key Frame (ส่ง Acknowledgement ยืนยันติดตั้ง Key)
+    end
+
+    note over STA: เกิด Event: WIFI_EVENT_STA_CONNECTED<br/>(Link Layer Secure Connection Complete!)
+    
+    rect rgb(230, 230, 250)
+        note over STA, AP: เข้าสู่ Phase 5: IP Assignment (DHCP Request/ACK)
+        STA->>AP: DHCP Discover / Request
+        AP-->>STA: DHCP Offer / ACK (มอบหมาย IP Address, Netmask, Gateway)
+        note over STA: เกิด Event: IP_EVENT_STA_GOT_IP<br/>(พร้อมรับส่งข้อมูล Internet!)
+    end
+```
 
 ---
 

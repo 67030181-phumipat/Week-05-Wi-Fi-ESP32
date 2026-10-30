@@ -26,8 +26,34 @@
 
 กระบวนการเชื่อมต่อทั้งหมดสามารถสรุปเป็น State Diagram ได้ดังนี้:
 
-<p align="center"><img src="Images/Fig_01-Phase-of-WiFi-Connection_2026-10-25T09-39-00_academic.svg" alt="01-Phase-of-WiFi-Connection"  width = 800px></p>
-<p align="center"><b>รูปที่ 1 </b> แผนผังลำดับขั้นตอนการทำงาน (Wi-Fi Connection State Machine)</p>
+```mermaid
+stateDiagram-v2
+    [*] --> Idle: Init Wi-Fi Driver
+    Idle --> Scanning: esp_wifi_connect()
+    
+    state "1. Scan Phase" as Scanning
+    Scanning --> Auth: พบ AP ตรงตาม Config
+    Scanning --> Disconnected: หา AP ไม่พบ
+
+    state "2. Auth Phase" as Auth
+    Auth --> Association: Auth Success (802.11)
+    Auth --> Disconnected: Auth Fail / Timeout
+
+    state "3. Association Phase" as Association
+    Association --> Handshake: Association Success
+    Association --> Disconnected: Assoc Fail / Timeout
+
+    state "4. Four-way Handshake Phase" as Handshake
+    Handshake --> Connected: 4/4 EAPOL Completed
+    Handshake --> Disconnected: Handshake Timeout / Wrong Password
+
+    state "5. IP Assignment (DHCP)" as Connected
+    Connected --> GotIP: DHCP Server แจก IP สำเร็จ (`IP_EVENT_STA_GOT_IP`)
+    Connected --> Disconnected: DHCP Timeout / IP Conflict
+
+    Disconnected --> Scanning: Retry Policy (ถ้าตั้งค่าไว้)
+    GotIP --> [*]: พร้อมรับส่งข้อมูลบน Internet (Ready)
+```
 
 ---
 

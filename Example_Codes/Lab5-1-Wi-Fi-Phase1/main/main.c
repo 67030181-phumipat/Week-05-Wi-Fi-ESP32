@@ -253,7 +253,7 @@ void app_main(void) {
   // ------------------------------------------------------------------
   // 5.1.4 Targeted SSID Scan - Non-Existent
   // ------------------------------------------------------------------
-  const char *dummy_ssid = "KBBK-IPHONE";
+  const char *dummy_ssid = "NON_EXISTENT_AP_9999";
   snprintf(title_buf, sizeof(title_buf),
            "Experiment 5.1.4: Targeted SSID Scan - Non-Existent (\"%s\")",
            dummy_ssid);

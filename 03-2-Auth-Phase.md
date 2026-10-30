@@ -9,8 +9,26 @@
 
 ## 1. ลำดับการแลกเปลี่ยนแพ็กเกจ Authentication (Sequence Diagram)
 
-<p align="center"><img src="Images/Fig_03-2-Auth-Phase_2026-10-25T09-40-41_academic.svg" alt="03-2-Auth-Phase" ></p>
-<p align="center"><b>รูปที่ 3 </b> ลำดับการแลกเปลี่ยนแพ็กเกจ Authentication (Sequence Diagram)</p>
+```mermaid
+sequenceDiagram
+    autonumber
+    participant STA as ESP32 (Station)
+    participant AP as Access Point (Router)
+
+    note over STA: เริ่มต้น Auth Timer (นับเวลาถอยหลัง)
+    STA->>AP: 802.11 Authentication Request (Algorithm: Open System)
+    
+    alt AP ตอบรับทันเวลา (Auth Success)
+        AP-->>STA: 802.11 Authentication Response (Status: Success)
+        note over STA: หยุด Auth Timer -> ผ่านเข้าสู่ Association Phase
+    else AP ไม่ตอบกลับในเวลาที่กำหนด (Auth Timeout)
+        note over STA: Auth Timer หมดเวลา (Expired)
+        note over STA: ส่ง Event WIFI_EVENT_STA_DISCONNECTED<br/>(Reason: WIFI_REASON_AUTH_EXPIRE)
+    else AP ปฏิเสธการ Auth (Auth Rejected)
+        AP-->>STA: 802.11 Authentication Response (Status: Failure)
+        note over STA: ส่ง Event WIFI_EVENT_STA_DISCONNECTED<br/>(Reason: WIFI_REASON_AUTH_FAIL)
+    end
+```
 
 ---
 

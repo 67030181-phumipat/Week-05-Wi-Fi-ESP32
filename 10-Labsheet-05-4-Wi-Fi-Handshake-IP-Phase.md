@@ -27,13 +27,49 @@
 
 ### 3.1 ลำดับขั้นการแลกเปลี่ยนแพ็กเกจ 4-Way Handshake และ DHCP (Sequence Diagram)
 
-<p align="center"><img src="Images/Fig_10-Labsheet-05-4-Wi-Fi-Handshake-IP-Phase_2026-10-25T10-24-50_academic.svg" alt="10-Labsheet-05-4-Wi-Fi-Handshake-IP-Phase" width="800" style="max-width: 800px; width: 100%; height: auto;" ></p>
-<p align="center"><b>รูปที่</b> 3.1 ลำดับขั้นการแลกเปลี่ยนแพ็กเกจ 4-Way Handshake และ DHCP (Sequence Diagram)</p>
+```mermaid
+sequenceDiagram
+    autonumber
+    participant STA as ESP32 (Station)
+    participant AP as Access Point (Router)
+
+    note over STA, AP: Phase 3 สิ้นสุด (เกิด WIFI_EVENT_STA_CONNECTED)
+
+    rect rgb(255, 248, 220)
+        note over STA, AP: Phase 4: WPA2 4-Way Handshake (EAPOL Keys)
+        AP->>STA: 1/4 EAPOL-Key Frame (ส่ง ANonce)
+        note over STA: คำนวณ PTK จาก PMK + ANonce + SNonce
+        STA->>AP: 2/4 EAPOL-Key Frame (ส่ง SNonce + MIC)
+        note over AP: ตรวจสอบ MIC (ถ้ารหัสผ่านผิด จะล้มเหลวที่จุดนี้)
+        AP->>STA: 3/4 EAPOL-Key Frame (ส่ง GTK + Confirm MIC)
+        STA->>AP: 4/4 EAPOL-Key Frame (ACK ยืนยันติดตั้ง Key ใน Hardware)
+    end
+
+    rect rgb(230, 230, 250)
+        note over STA, AP: Phase 5: IP Assignment (DHCP Client)
+        STA->>AP: DHCP Discover / Request
+        AP-->>STA: DHCP Offer / ACK (มอบหมาย IP Address, Netmask, GW)
+    end
+
+    note over STA: Wi-Fi Stack ปล่อย Event: IP_EVENT_STA_GOT_IP<br/>(พร้อมสื่อสารระดับ IP Network!)
+```
 
 ### 3.2 โครงสร้างข้อมูล `ip_event_got_ip_t` (Class Diagram)
 
-<p align="center"><img src="Images/Fig_10-Labsheet-05-4-Wi-Fi-Handshake-IP-Phase_2026-10-25T10-24-55_academic.svg" alt="10-Labsheet-05-4-Wi-Fi-Handshake-IP-Phase" width="400" style="max-width: 800px;  height: auto;" ></p>
-<p align="center"><b>รูปที่</b> 3.2 โครงสร้างข้อมูล `ip_event_got_ip_t` (Class Diagram)</p>
+```mermaid
+classDiagram
+    class ip_event_got_ip_t {
+        +esp_ip4_addr_t ip
+        +esp_ip4_addr_t netmask
+        +esp_ip4_addr_t gw
+        +bool ip_changed
+    }
+    class esp_ip4_addr_t {
+        +uint32_t addr
+    }
+
+    ip_event_got_ip_t "1" *-- "3" esp_ip4_addr_t : contains
+```
 
 ---
 
@@ -310,6 +346,236 @@ void app_main(void) {
 ## 7. คำถามท้ายการทดลอง (Post-Lab Questions)
 
 1. เหตุใดกระบวนการ **4-Way Handshake** จึงพิสูจน์ทราบรหัสผ่าน Wi-Fi ได้โดยไม่ต้องส่งรหัสผ่าน (Passphrase) ลอยไปในอากาศเลยแม้แต่แพ็กเกจเดียว?
+
+	ตอบ ใช้วิธี การทาย หรือ เทียบสมการกัน โดยฝั่ง ESP32 และ Router ต่างคนต่างเอารหัสผ่าน Wi-Fi + เลขสุ่มที่เพิ่งแลกเปลี่ยนกันในอากาศ มาเข้าสูตรคณิตศาสตร์ปั่นรวมกันจนได้ค่า MIC หรือ ลายนิ้วมือดิจิทัล
+	การพิสูจน์ ทั้งสองฝั่งแค่ส่งตัวเลขสุ่มกับค่า MIC ไปให้อีกฝ่ายดู ถ้าทั้งสองฝั่งคำนวณค่า MIC ออกมาตรงกันเป๊ะ แปลว่า คนนี้มันมีรหัสผ่านชุดเดียวกับฉันจริงด้วย โดยที่ไม่จำเป็นต้องตะโกนบอกตัวรหัสผ่านจริงออกไปในอากาศเลยครับ ป้องกันโดนดักฟังรหัสผ่านได้ 100%
+	
 2. อธิบายบทบาทและที่มาของคีย์ **PMK (Pairwise Master Key)** และ **PTK (Pairwise Transient Key)** ว่ามีความสัมพันธ์กันอย่างไรในการเข้ารหัสเฟรมข้อมูล?
+
+	ตอบ 
+	PMK (Pairwise Master Key) เปรียบเหมือน แม่กุญแจหลัก 
+	ที่มา ได้มาจากการเอารหัสผ่าน Wi-Fi (Passphrase) มาปั่นรวมกับชื่อ SSID ของ Router
+	บทบาท เป็นกุญแจตั้งต้นที่ อยู่นิ่งๆ ไม่เปลี่ยนแปลง ตราบใดที่เรายังไม่เปลี่ยนรหัสผ่าน Wi-Fi
+	
+	PTK (Pairwise Transient Key)  เปรียบเหมือน ลูกกุญแจชั่วคราว
+	ที่มา เกิดจากการเอา PMK  ไปปั่นผสมรวมกับ เลขสุ่ม (Nonce) + MAC Address ของทั้งสองฝ่าย
+	บทบาท เป็นกุญแจที่ถูกสร้างขึ้นมาใหม่ ใช้วันต่อวัน / รอบต่อรอบ เอาไว้ใช้เข้ารหัสข้อมูลจริงๆ ที่วิ่งไปมาในอากาศ
+	
+	ความสัมพันธ์ PMK คือ ตัวแม่ที่เอาไว้ใช้สร้าง PTK เพื่อที่เวลาส่งข้อมูลจริง เราจะใช้ PTK เข้ารหัส พอต่อWi-Fi ใหม่รอบหน้า ก็แค่สุ่ม PTK ชุดใหม่ขึ้นมาใช้ โดยที่แม่กุญแจหลัก ยังคงปลอดภัยเหมือนเดิม
+	
 3. เหตุใดเมื่อเราพิมพ์ Password ผิด (ข้อ 5.4.2) ESP32 จึงยังคงได้รับ Event **`WIFI_EVENT_STA_CONNECTED`** ก่อนที่จะเกิด Event **`WIFI_EVENT_STA_DISCONNECTED`** ตามมาในภายหลัง?
+
+	ตอบ เพราะว่า `WIFI_EVENT_STA_CONNECTED` มันประกาศตัวตั้งแต่จบ Phase 
+	ในจังหวะนั้น สื่อสารทางคลื่นวิทยุสำเร็จแล้ว ตกลงความเร็วกันเรียบร้อย ฮาร์ดแวร์ต่อติดกันแล้ว ESP32 เลยยิง Event แจ้งว่า สัญญาณวิทยุจับคู่ติดแล้วนะ
+	แต่หลังจากนั้น พอเข้าสู่ Phase 4 (4-Way Handshake) เพื่อเช็ครหัสผ่านจริงๆ แล้วพบว่ารหัสผิด Router จึงยกเลิกการเชื่อมต่อ แล้วเตะ ESP32 ออกมาทีหลัง ส่งผลให้เกิด Event `WIFI_EVENT_STA_DISCONNECTED` ตามออกมา
+	
 4. หากเครือข่าย Wi-Fi ไม่มี DHCP Server (ไม่มีการแจก IP อัตโนมัติ) ผลการทดลองในข้อ 5.4.1 จะหยุดอยู่ที่ขั้นตอนใด และจะไม่เกิด Event ใดขึ้น?
+
+	ตอบ จะไปหยุดที่ จบ Phase 4 (4-Way Handshake ผ่านเรียบร้อย) ESP32 ยืนยันรหัสผ่านถูกต้องแล้ว เข้ารหัสคลื่นวิทยุเรียบร้อย แต่ พยายามยิงคำขอขอ IP Address (DHCP Request) ออกไป แล้วไม่มีใครตอบกลับมา 
+	จะไม่เกิด Event `IP_EVENT_STA_GOT_IP`
+	ผลลัพธ์คือโปรแกรมจะติดหล่มค้างรอ IP จนกระทั่งชน Timeout (ขึ้น `TEST TIMEOUT`) เพราะไม่ได้ IP Address มาใช้งาน
+	
+
+** command log **
+
+
+```
+Running idf_monitor in directory D:\Week-05-Wi-Fi-ESP32\wi-fi
+Executing "C:\Espressif\tools\python\v6.0.2\venv\Scripts\python.exe C:\esp\v6.0.2\esp-idf\tools/idf_monitor.py -p COM3 -b 115200 --toolchain-prefix xtensa-esp32-elf- --target esp32 --revision 0 D:\Week-05-Wi-Fi-ESP32\wi-fi\build\wi-fi.elf D:\Week-05-Wi-Fi-ESP32\wi-fi\build\bootloader\bootloader.elf --force-color -m 'C:\Espressif\tools\python\v6.0.2\venv\Scripts\python.exe' 'C:\esp\v6.0.2\esp-idf\tools\idf.py'"...
+--- Warning: GDB cannot open serial ports accessed as COMx
+--- Using \\.\COM3 instead...
+--- esp-idf-monitor 1.9.0 on \\.\COM3 115200
+--- Quit: Ctrl+] | Menu: Ctrl+T | Help: Ctrl+T followed by Ctrl+H
+
+B��J��ѹesp32�ets Jul 29 2019 12:21:46
+
+rst:0x1 (POWERON_RESET),boot:0x13 (SPI_FAST_FLASH_BOOT)
+configsip: 0, SPIWP:0xee
+clk_drv:0x00,q_drv:0x00,d_drv:0x00,cs0_drv:0x00,hd_drv:0x00,wp_drv:0x00
+mode:DIO, clock div:2
+load:0x3fff0040,len:6272
+load:0x40078000,len:15820
+load:0x40080400,len:3920
+--- 0x40080400: _invalid_pc_placeholder at C:/esp/v6.0.2/esp-idf/components/xtensa/xtensa_vectors.S:2259
+entry 0x40080644
+--- 0x40080644: call_start_cpu0 at C:/esp/v6.0.2/esp-idf/components/bootloader/subproject/main/bootloader_start.c:27
+I (27) boot: ESP-IDF v6.0.2 2nd stage bootloader
+I (27) boot: compile time Aug  3 2026 10:48:39
+I (28) boot: Multicore bootloader
+I (29) boot: chip revision: v3.1
+I (32) boot.esp32: SPI Speed      : 40MHz
+I (35) boot.esp32: SPI Mode       : DIO
+I (39) boot.esp32: SPI Flash Size : 2MB
+I (42) boot: Enabling RNG early entropy source...
+I (47) boot: Partition Table:
+I (49) boot: ## Label            Usage          Type ST Offset   Length
+I (56) boot:  0 nvs              WiFi data        01 02 00009000 00006000
+I (62) boot:  1 phy_init         RF data          01 01 0000f000 00001000
+I (69) boot:  2 factory          factory app      00 00 00010000 00100000
+I (75) boot: End of partition table
+I (79) esp_image: segment 0: paddr=00010020 vaddr=3f400020 size=1a6b8h (108216) map
+I (125) esp_image: segment 1: paddr=0002a6e0 vaddr=3ffb0000 size=04528h ( 17704) load
+I (132) esp_image: segment 2: paddr=0002ec10 vaddr=40080000 size=01408h (  5128) load
+I (134) esp_image: segment 3: paddr=00030020 vaddr=400d0020 size=86360h (549728) map
+I (332) esp_image: segment 4: paddr=000b6388 vaddr=40081408 size=14200h ( 82432) load
+I (366) esp_image: segment 5: paddr=000ca590 vaddr=50000000 size=00028h (    40) load
+I (377) boot: Loaded app from partition at offset 0x10000
+I (377) boot: Disabling RNG early entropy source...
+I (388) cpu_start: Multicore app
+I (396) cpu_start: GPIO 3 and 1 are used as console UART I/O pins
+I (396) cpu_start: Pro cpu start user code
+I (396) cpu_start: cpu freq: 160000000 Hz
+I (398) app_init: Application information:
+I (402) app_init: Project name:     wi-fi
+I (406) app_init: App version:      37de524-dirty
+I (410) app_init: Compile time:     Aug  3 2026 10:48:24
+I (415) app_init: ELF file SHA256:  8de8c5f2a...
+I (419) app_init: ESP-IDF:          v6.0.2
+I (423) efuse_init: Min chip rev:     v0.0
+I (427) efuse_init: Max chip rev:     v3.99 
+I (431) efuse_init: Chip rev:         v3.1
+I (435) heap_init: Initializing. RAM available for dynamic allocation:
+I (441) heap_init: At 3FFAE6E0 len 00001920 (6 KiB): DRAM
+I (446) heap_init: At 3FFB8A40 len 000275C0 (157 KiB): DRAM
+I (452) heap_init: At 3FFE0440 len 00003AE0 (14 KiB): D/IRAM
+I (457) heap_init: At 3FFE4350 len 0001BCB0 (111 KiB): D/IRAM
+I (462) heap_init: At 40095608 len 0000A9F8 (42 KiB): IRAM
+I (469) spi_flash: detected chip: generic
+I (471) spi_flash: flash io: dio
+W (474) spi_flash: Detected size(4096k) larger than the size in the binary image header(2048k). Using the size in the binary image header.
+I (488) main_task: Started on CPU0
+I (488) main_task: Calling app_main()
+I (488) LAB_HANDSHAKE_IP: [FORENSIC]: Call nvs_flash_init()
+I (518) LAB_HANDSHAKE_IP: [FORENSIC]: nvs_flash_init() returned ESP_OK (0x0)
+I (518) LAB_HANDSHAKE_IP: [FORENSIC]: Call esp_netif_init()
+I (518) LAB_HANDSHAKE_IP: [FORENSIC]: Call esp_event_loop_create_default()
+I (528) LAB_HANDSHAKE_IP: [FORENSIC]: Call esp_netif_create_default_wifi_sta()
+I (538) LAB_HANDSHAKE_IP: [FORENSIC]: esp_netif_create_default_wifi_sta() returned 0x3ffbdd38
+I (538) LAB_HANDSHAKE_IP: [FORENSIC]: Call esp_wifi_init(&cfg)
+I (558) wifi:wifi driver task: 3ffc0424, prio:23, stack:6656, core=0
+I (568) wifi:wifi firmware version: 00ad238
+I (568) wifi:wifi certification version: v7.0
+I (568) wifi:config NVS flash: enabled
+I (568) wifi:config nano formatting: disabled
+I (578) wifi:Init data frame dynamic rx buffer num: 32
+I (578) wifi:Init static rx mgmt buffer num: 5
+I (578) wifi:Init management short buffer num: 32
+I (588) wifi:Init dynamic tx buffer num: 32
+I (588) wifi:Init static rx buffer size: 1600
+I (598) wifi:Init static rx buffer num: 10
+I (598) wifi:Init dynamic rx buffer num: 32
+I (608) wifi_init: rx ba win: 6
+I (608) wifi_init: accept mbox: 6
+I (608) wifi_init: tcpip mbox: 32
+I (608) wifi_init: udp mbox: 6
+I (618) wifi_init: tcp mbox: 6
+I (618) wifi_init: tcp tx win: 5760
+I (618) wifi_init: tcp rx win: 5760
+I (628) wifi_init: tcp mss: 1440
+I (628) wifi_init: WiFi IRAM OP enabled
+I (628) wifi_init: WiFi RX IRAM OP enabled
+I (638) LAB_HANDSHAKE_IP: [FORENSIC]: Call esp_event_handler_instance_register(WIFI_EVENT)
+I (638) LAB_HANDSHAKE_IP: [FORENSIC]: Call esp_event_handler_instance_register(IP_EVENT)
+I (648) LAB_HANDSHAKE_IP: [FORENSIC]: Call esp_wifi_set_mode(WIFI_MODE_STA)
+I (658) LAB_HANDSHAKE_IP: ==================================================================
+I (668) LAB_HANDSHAKE_IP:   Lab 5.4: 4-Way Handshake & IP Assignment Phase (ESP-IDF Forensic)
+I (668) LAB_HANDSHAKE_IP: ==================================================================
+I (678) LAB_HANDSHAKE_IP: 
+
+I (688) LAB_HANDSHAKE_IP: ------------------------------------------------------------------
+I (688) LAB_HANDSHAKE_IP: >>> Experiment 5.4.1: Handshake & IP Test - Correct Password
+I (698) LAB_HANDSHAKE_IP: ------------------------------------------------------------------
+I (708) LAB_HANDSHAKE_IP:   Target SSID    : "ไก่ติดกาว"
+I (718) LAB_HANDSHAKE_IP:   Target Password: "10101010"
+I (718) LAB_HANDSHAKE_IP: [FORENSIC]: Call esp_wifi_stop()
+I (728) LAB_HANDSHAKE_IP: [FORENSIC]: Call esp_wifi_set_config(WIFI_IF_STA, &wifi_config)
+I (758) LAB_HANDSHAKE_IP: [FORENSIC]: esp_wifi_set_config() returned ESP_OK (0x0)
+I (758) LAB_HANDSHAKE_IP: [FORENSIC]: Call esp_wifi_start()
+I (768) phy_init: phy_version 4863,a3a4459,Oct 28 2025,14:30:06
+I (848) wifi:mode : sta (14:33:5c:0d:d5:4c)
+I (848) wifi:enable tsf
+I (848) LAB_HANDSHAKE_IP: [EVENT FORENSIC]: WIFI_EVENT ID 43 received
+I (848) LAB_HANDSHAKE_IP: [FORENSIC]: esp_wifi_start() returned ESP_OK (0x0)
+I (848) LAB_HANDSHAKE_IP: [EVENT FORENSIC]: WIFI_EVENT_STA_START received
+I (858) LAB_HANDSHAKE_IP: [FORENSIC]: Call esp_wifi_connect()
+I (868) LAB_HANDSHAKE_IP: [FORENSIC]: esp_wifi_connect() returned ESP_OK (0x0)
+I (878) wifi:new:<10,0>, old:<1,0>, ap:<255,255>, sta:<10,0>, prof:1, snd_ch_cfg:0x0
+I (878) wifi:state: init -> auth (0xb0)
+I (888) LAB_HANDSHAKE_IP: [EVENT FORENSIC]: WIFI_EVENT ID 43 received
+I (1778) wifi:state: auth -> assoc (0x0)
+I (1788) wifi:state: assoc -> run (0x10)
+I (1828) wifi:connected with ไก่ติดกาว, aid = 3, channel 10, BW20, bssid = ee:b5:07:32:c7:dc
+I (1828) wifi:security: WPA3-SAE HUNT_AND_PECK, phy: bgn, rssi: -45, cipher(pairwise:0x3, group:0x3), pmf:1
+I (1848) wifi:pm start, type: 1
+
+I (1848) wifi:dp: 1, bi: 102400, li: 3, scale listen interval from 307200 us to 307200 us
+I (1848) LAB_HANDSHAKE_IP: =======================================================
+I (1858) LAB_HANDSHAKE_IP: [EVENT FORENSIC]: WIFI_EVENT_STA_CONNECTED received!
+I (1858) LAB_HANDSHAKE_IP:   -> Phase 2 (Auth) & Phase 3 (Assoc) PASSED
+I (1868) LAB_HANDSHAKE_IP:   -> Connected SSID  : ไก่ติดกาว
+I (1878) LAB_HANDSHAKE_IP:   -> BSSID           : EE:B5:07:32:C7:DC
+I (1878) LAB_HANDSHAKE_IP:   -> Channel         : 10
+I (1888) LAB_HANDSHAKE_IP:   -> Association ID  : 34680
+I (1888) LAB_HANDSHAKE_IP: [FORENSIC]: Entering Phase 4: 4-Way EAPOL Key Exchange...
+I (1898) LAB_HANDSHAKE_IP: =======================================================
+I (1908) wifi:dp: 2, bi: 102400, li: 4, scale listen interval from 307200 us to 409600 us
+I (1908) wifi:AP's beacon interval = 102400 us, DTIM period = 2
+I (2898) esp_netif_handlers: sta ip: 10.13.13.209, mask: 255.255.255.0, gw: 10.13.13.90
+I (2898) LAB_HANDSHAKE_IP: =======================================================
+I (2898) LAB_HANDSHAKE_IP: [EVENT FORENSIC]: IP_EVENT_STA_GOT_IP received!
+I (2908) LAB_HANDSHAKE_IP:   [SUCCESS]: Phase 4 (4-Way Handshake) & Phase 5 (DHCP IP) COMPLETED!
+I (2918) LAB_HANDSHAKE_IP:   -> Allocated IP Address : 10.13.13.209
+I (2918) LAB_HANDSHAKE_IP:   -> Subnet Mask          : 255.255.255.0
+I (2928) LAB_HANDSHAKE_IP:   -> Default Gateway      : 10.13.13.90
+I (2928) LAB_HANDSHAKE_IP: =======================================================
+I (2938) LAB_HANDSHAKE_IP: [RESULT]: TEST PASSED - 4-Way Handshake & DHCP IP Assignment Successful!
+I (2948) wifi:state: run -> init (0x0)
+I (2958) wifi:pm stop, total sleep time: 858747 us / 1109668 us
+
+W (2958) LAB_HANDSHAKE_IP: =======================================================
+W (2968) LAB_HANDSHAKE_IP: [EVENT FORENSIC]: WIFI_EVENT_STA_DISCONNECTED received!
+W (2968) LAB_HANDSHAKE_IP:   -> Target SSID          : ไก่ติดกาว
+W (2978) LAB_HANDSHAKE_IP:   -> Reason Code (Decimal): 8
+W (2988) LAB_HANDSHAKE_IP:   -> Reason Code (Hex)    : 0x08
+W (2988) LAB_HANDSHAKE_IP:   -> Reason Diagnosis     : OTHER_DISCONNECT_REASON
+W (2998) LAB_HANDSHAKE_IP: =======================================================
+I (4958) LAB_HANDSHAKE_IP: 
+
+I (4958) LAB_HANDSHAKE_IP: ------------------------------------------------------------------
+I (4958) LAB_HANDSHAKE_IP: >>> Experiment 5.4.2: Handshake Test - Incorrect Password
+I (4958) LAB_HANDSHAKE_IP: ------------------------------------------------------------------
+I (4968) LAB_HANDSHAKE_IP:   Target SSID    : "ไก่ติดกาว"
+I (4978) LAB_HANDSHAKE_IP:   Target Password: "WRONG_PASSWORD_1234"
+I (4978) LAB_HANDSHAKE_IP: [FORENSIC]: Call esp_wifi_stop()
+I (4988) LAB_HANDSHAKE_IP: [EVENT FORENSIC]: WIFI_EVENT ID 3 received
+I (4998) wifi:flush txq
+I (4998) wifi:stop sw txq
+I (4998) wifi:lmac stop hw txq
+I (4998) LAB_HANDSHAKE_IP: [FORENSIC]: Call esp_wifi_set_config(WIFI_IF_STA, &wifi_config)
+I (5028) LAB_HANDSHAKE_IP: [FORENSIC]: esp_wifi_set_config() returned ESP_OK (0x0)
+I (5028) LAB_HANDSHAKE_IP: [FORENSIC]: Call esp_wifi_start()
+I (5038) wifi:mode : sta (14:33:5c:0d:d5:4c)
+I (5038) wifi:enable tsf
+I (5038) LAB_HANDSHAKE_IP: [EVENT FORENSIC]: WIFI_EVENT ID 43 received
+I (5048) LAB_HANDSHAKE_IP: [FORENSIC]: esp_wifi_start() returned ESP_OK (0x0)
+I (5048) LAB_HANDSHAKE_IP: [EVENT FORENSIC]: WIFI_EVENT_STA_START received
+I (5058) LAB_HANDSHAKE_IP: [FORENSIC]: Call esp_wifi_connect()
+I (5068) LAB_HANDSHAKE_IP: [FORENSIC]: esp_wifi_connect() returned ESP_OK (0x0)
+I (5078) wifi:new:<10,0>, old:<1,0>, ap:<255,255>, sta:<10,0>, prof:1, snd_ch_cfg:0x0
+I (5078) wifi:state: init -> auth (0xb0)
+I (5078) LAB_HANDSHAKE_IP: [EVENT FORENSIC]: WIFI_EVENT ID 43 received
+I (5828) wifi:state: auth -> init (0x600)
+W (5848) LAB_HANDSHAKE_IP: =======================================================
+W (5848) LAB_HANDSHAKE_IP: [EVENT FORENSIC]: WIFI_EVENT_STA_DISCONNECTED received!
+W (5858) LAB_HANDSHAKE_IP:   -> Target SSID          : ไก่ติดกาว
+W (5858) LAB_HANDSHAKE_IP:   -> Reason Code (Decimal): 202
+W (5868) LAB_HANDSHAKE_IP:   -> Reason Code (Hex)    : 0xCA
+W (5868) LAB_HANDSHAKE_IP:   -> Reason Diagnosis     : WIFI_REASON_AUTH_FAIL (1/202)
+W (5878) LAB_HANDSHAKE_IP: =======================================================
+W (5888) LAB_HANDSHAKE_IP: [RESULT]: TEST FAILED - Disconnected during Handshake or Auth.
+I (5898) LAB_HANDSHAKE_IP: ==================================================================
+I (5898) LAB_HANDSHAKE_IP:   [Phase 4 & Phase 5 Completed: Wi-Fi Handshake & IP Lab Finished]
+I (5908) LAB_HANDSHAKE_IP: ==================================================================
+I (5918) main_task: Returned from app_main()
+
+```
